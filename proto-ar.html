@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0B0E14">
+<title>Kal Mydas, prototype de réalité augmentée</title>
+<style>
+:root{
+  --fond:#0B0E14;
+  --carte:#141A26;
+  --ligne:#232C3C;
+  --texte:#E8ECF4;
+  --gris:#8A94A6;
+  --bleu:#4184CC;
+  --or:#BEA56E;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{
+  margin:0;padding:0;height:100%;width:100%;
+  overflow:hidden;overscroll-behavior:none;touch-action:manipulation;
+  background:var(--fond);color:var(--texte);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:16px;line-height:1.5;
+  position:fixed;top:0;left:0;
+}
+h1,h2,h3,p{margin:0}
+button{font-family:inherit;font-size:inherit;border:0;cursor:pointer}
+
+/* Ecran d accueil */
+#accueil{
+  position:absolute;inset:0;z-index:60;
+  display:flex;flex-direction:column;justify-content:center;
+  padding:28px 22px calc(28px + env(safe-area-inset-bottom));
+  background:radial-gradient(120% 80% at 50% 0%, #12192a 0%, var(--fond) 60%);
+  overflow-y:auto;
+}
+.marque{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--or);margin-bottom:14px}
+#accueil h1{font-size:27px;line-height:1.22;font-weight:600;letter-spacing:-.01em}
+#accueil h1 span{color:var(--bleu)}
+.intro{color:var(--gris);margin-top:14px;font-size:15px}
+.etapes{margin-top:22px;border:1px solid var(--ligne);border-radius:14px;background:var(--carte);overflow:hidden}
+.etape{display:flex;gap:12px;padding:13px 15px;border-bottom:1px solid var(--ligne);align-items:flex-start}
+.etape:last-child{border-bottom:0}
+.etape b{display:block;font-weight:600;font-size:14px}
+.etape em{display:block;font-style:normal;color:var(--gris);font-size:13px;margin-top:2px}
+.num{width:22px;height:22px;flex:0 0 22px;border-radius:50%;border:1px solid var(--bleu);color:var(--bleu);
+  font-size:12px;display:flex;align-items:center;justify-content:center;margin-top:2px}
+.principal{
+  margin-top:24px;width:100%;padding:17px 20px;border-radius:13px;
+  background:var(--bleu);color:#fff;font-weight:600;font-size:16px;
+}
+.principal:disabled{opacity:.55}
+.note{margin-top:16px;color:var(--gris);font-size:12.5px}
+#etatDemarrage{margin-top:14px;font-size:13px;color:var(--or);min-height:19px}
+
+/* Scene */
+#jeu{position:absolute;inset:0;z-index:10;display:none}
+#flux{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
+#voile{position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,14,20,.55) 0%,rgba(11,14,20,0) 26%,rgba(11,14,20,0) 62%,rgba(11,14,20,.72) 100%);pointer-events:none}
+#scene{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+
+.perso{position:absolute;transform:translate(-50%,-50%);will-change:left,top,width;pointer-events:none}
+.perso .corps{animation:flotte 3.4s ease-in-out infinite}
+@keyframes flotte{0%,100%{transform:translateY(-3%)}50%{transform:translateY(3%)}}
+.perso .etiquette{
+  position:absolute;left:50%;bottom:-24px;transform:translateX(-50%);
+  white-space:nowrap;font-size:11px;letter-spacing:.04em;
+  background:rgba(20,26,38,.82);border:1px solid var(--ligne);border-radius:999px;
+  padding:3px 9px;color:var(--texte);
+}
+.perso .etiquette i{font-style:normal;color:var(--gris)}
+.perso.proche .etiquette{border-color:var(--or);color:var(--or)}
+.perso.capturee{animation:capture .62s ease-out forwards}
+@keyframes capture{
+  0%{opacity:1;filter:brightness(1)}
+  35%{opacity:1;filter:brightness(2.1)}
+  100%{opacity:0;filter:brightness(2.4)}
+}
+
+#reticule{
+  position:absolute;left:50%;top:50%;width:74px;height:74px;margin:-37px 0 0 -37px;
+  border:1px solid rgba(232,236,244,.22);border-radius:50%;pointer-events:none;
+}
+#reticule::before,#reticule::after{content:"";position:absolute;background:rgba(232,236,244,.3)}
+#reticule::before{left:50%;top:-9px;width:1px;height:14px}
+#reticule::after{left:50%;bottom:-9px;width:1px;height:14px}
+
+/* Barre haute */
+#haut{
+  position:absolute;top:0;left:0;right:0;z-index:20;
+  padding:calc(10px + env(safe-area-inset-top)) 14px 10px;
+  display:flex;align-items:center;gap:10px;
+}
+.pastille{
+  background:rgba(20,26,38,.82);border:1px solid var(--ligne);border-radius:12px;
+  padding:8px 12px;font-size:13px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+}
+#compteur b{color:var(--or);font-weight:600}
+#relancer{background:rgba(20,26,38,.82);border:1px solid var(--ligne);border-radius:12px;
+  padding:8px 12px;font-size:13px;color:var(--texte);margin-left:auto}
+#message{
+  position:absolute;top:calc(58px + env(safe-area-inset-top));left:14px;right:14px;z-index:19;
+  background:rgba(20,26,38,.9);border:1px solid var(--ligne);border-left:2px solid var(--bleu);
+  border-radius:12px;padding:11px 13px;font-size:13px;color:var(--texte);display:none;
+}
+#message.or{border-left-color:var(--or)}
+
+/* Bouton capturer */
+#capturer{
+  position:absolute;z-index:30;left:50%;transform:translateX(-50%);
+  bottom:calc(88px + env(safe-area-inset-bottom));
+  padding:15px 30px;border-radius:999px;background:var(--or);color:#0B0E14;
+  font-weight:700;font-size:16px;letter-spacing:.02em;display:none;
+  box-shadow:0 0 0 6px rgba(190,165,110,.16);
+}
+#capturer.visible{display:block;animation:pulse 1.7s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 6px rgba(190,165,110,.16)}50%{box-shadow:0 0 0 13px rgba(190,165,110,.06)}}
+
+/* Radar */
+#radar{position:absolute;inset:0;z-index:15;display:none;background:var(--fond);
+  align-items:center;justify-content:center;flex-direction:column;padding:0 16px}
+#radar.actif{display:flex}
+#toileRadar{width:min(88vw,340px);height:min(88vw,340px)}
+#radarNote{margin-top:16px;font-size:13px;color:var(--gris);text-align:center;max-width:330px}
+#reessayer{margin-top:14px;padding:11px 18px;border-radius:11px;background:transparent;
+  border:1px solid var(--ligne);color:var(--bleu);font-size:14px}
+
+/* Diagnostic */
+#diag{
+  position:absolute;left:0;right:0;bottom:0;z-index:40;
+  background:rgba(11,14,20,.94);border-top:1px solid var(--ligne);
+  padding:9px 14px calc(9px + env(safe-area-inset-bottom));
+  font-size:12px;color:var(--gris);
+}
+#diagTitre{display:flex;align-items:center;gap:8px;cursor:pointer}
+#diagTitre span{letter-spacing:.14em;text-transform:uppercase;font-size:10.5px}
+#diagTitre em{font-style:normal;margin-left:auto;color:var(--texte);font-size:12px}
+#diagCorps{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-top:9px}
+#diag.replie #diagCorps{display:none}
+.ligneDiag{display:flex;justify-content:space-between;border-bottom:1px solid var(--ligne);padding-bottom:4px}
+.ligneDiag b{color:var(--texte);font-weight:500}
+.chevron{color:var(--bleu);font-size:12px}
+</style>
+</head>
+<body>
+
+<section id="accueil">
+  <div class="marque">Kal Mydas, chantier KAL move</div>
+  <h1>Cinq présences vous attendent <span>autour de vous</span>.</h1>
+  <p class="intro">Ce prototype pose cinq personnages à des coordonnées réelles autour de votre position, entre 25 et 160 mètres. Vous les cherchez en tournant sur vous-même, vous vous en approchez à pied, puis vous les capturez.</p>
+
+  <div class="etapes">
+    <div class="etape"><div class="num">1</div><div><b>La position</b><em>Le téléphone relève votre position afin de placer les personnages autour de vous.</em></div></div>
+    <div class="etape"><div class="num">2</div><div><b>Le cap</b><em>La boussole indique la direction que vous regardez. Sur iPhone, le système vous demande votre accord.</em></div></div>
+    <div class="etape"><div class="num">3</div><div><b>La caméra arrière</b><em>Le flux vidéo sert de fond. Rien n'est enregistré, rien n'est transmis.</em></div></div>
+  </div>
+
+  <button id="demarrer" class="principal">Autoriser et commencer</button>
+  <div id="etatDemarrage"></div>
+  <p class="note">La page doit être ouverte en HTTPS, sinon le téléphone refuse la position et la caméra. Sortez à l'air libre, le cap et la position sont nettement plus stables à l'extérieur qu'entre des murs.</p>
+</section>
+
+<section id="jeu">
+  <video id="flux" playsinline autoplay muted></video>
+  <div id="voile"></div>
+  <div id="scene"></div>
+  <div id="reticule"></div>
+
+  <div id="radar">
+    <svg id="toileRadar" viewBox="0 0 340 340"></svg>
+    <p id="radarNote"></p>
+    <button id="reessayer">Réessayer la boussole</button>
+  </div>
+
+  <div id="haut">
+    <div class="pastille" id="compteur">Collection <b>0</b> sur 5</div>
+    <button id="relancer">Relancer</button>
+  </div>
+
+  <div id="message"></div>
+  <button id="capturer">Capturer</button>
+
+  <div id="diag" class="replie">
+    <div id="diagTitre"><span>Diagnostic</span><em id="diagResume">En attente</em><span class="chevron" id="chevron">Déplier</span></div>
+    <div id="diagCorps">
+      <div class="ligneDiag">Cap <b id="dCap">indisponible</b></div>
+      <div class="ligneDiag">Source du cap <b id="dSource">aucune</b></div>
+      <div class="ligneDiag">Précision GPS <b id="dPrecision">indisponible</b></div>
+      <div class="ligneDiag">Plus proche <b id="dProche">indisponible</b></div>
+      <div class="ligneDiag">Mode <b id="dMode">caméra</b></div>
+      <div class="ligneDiag">Restants <b id="dRestants">5</b></div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================================================
+   Constantes
+   ============================================================ */
+var RAYON_TERRE = 6378137;          // metres, rayon equatorial WGS84
+var DISTANCES = [25, 45, 70, 110, 160];
+var NOMS = ["Sentinelle", "Veilleur", "Passeur", "Gardien", "Éclaireur"];
+var COULEURS = ["#4184CC", "#BEA56E", "#5FA8D3", "#7FA0C8", "#3E6FA8"];
+var CHAMP = 60;                     // demi champ de vision en degrés
+var RAYON_CAPTURE = 15;             // metres
+var TOLERANCE_CENTRE = 14;          // degrés d'ecart au centre pour capturer
+var TAILLE_LISSAGE = 8;             // echantillons de cap moyennes
+var DELAI_BOUSSOLE = 3500;          // millisecondes avant repli radar
+
+/* ============================================================
+   Etat, entierement en memoire, aucun stockage navigateur
+   ============================================================ */
+var etat = {
+  position: null,        // {lat, lon, precision}
+  cap: null,             // degrés lisses, 0 = nord
+  sourceCap: "aucune",
+  personnages: [],
+  captures: 0,
+  mode: "camera",        // "camera" ou "radar"
+  flux: null,
+  veilleurPosition: null,
+  echantillons: [],
+  derniereOrientation: 0,
+  cible: null
+};
+
+/* ============================================================
+   Utilitaires geographiques
+   ============================================================ */
+function enRadians(d){ return d * Math.PI / 180; }
+function enDegres(r){ return r * 180 / Math.PI; }
+
+// Deplace un point de "distance" metres dans la direction "cap" (0 = nord).
+function deplacer(lat, lon, distance, cap){
+  var dNord = distance * Math.cos(enRadians(cap));
+  var dEst  = distance * Math.sin(enRadians(cap));
+  var dLat = enDegres(dNord / RAYON_TERRE);
+  var dLon = enDegres(dEst / (RAYON_TERRE * Math.cos(enRadians(lat))));
+  return { lat: lat + dLat, lon: lon + dLon };
+}
+
+// Distance haversine en metres.
+function distanceEntre(lat1, lon1, lat2, lon2){
+  var p1 = enRadians(lat1), p2 = enRadians(lat2);
+  var dp = enRadians(lat2 - lat1), dl = enRadians(lon2 - lon1);
+  var a = Math.sin(dp/2)*Math.sin(dp/2) + Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)*Math.sin(dl/2);
+  return 2 * RAYON_TERRE * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// Cap initial du point 1 vers le point 2, en degrés depuis le nord.
+function relevement(lat1, lon1, lat2, lon2){
+  var p1 = enRadians(lat1), p2 = enRadians(lat2), dl = enRadians(lon2 - lon1);
+  var y = Math.sin(dl) * Math.cos(p2);
+  var x = Math.cos(p1)*Math.sin(p2) - Math.sin(p1)*Math.cos(p2)*Math.cos(dl);
+  return (enDegres(Math.atan2(y, x)) + 360) % 360;
+}
+
+// Ecart angulaire signe, ramene dans l'intervalle -180 à 180.
+function ecart(angle){
+  var a = ((angle + 180) % 360 + 360) % 360 - 180;
+  return a;
+}
+
+function borner(v, mini, maxi){ return v < mini ? mini : (v > maxi ? maxi : v); }
+
+/* ============================================================
+   Lissage du cap, moyenne vectorielle, passage par 360 gere
+   ============================================================ */
+function lisserCap(valeur){
+  etat.echantillons.push(valeur);
+  if (etat.echantillons.length > TAILLE_LISSAGE) etat.echantillons.shift();
+  var sx = 0, sy = 0;
+  for (var i = 0; i < etat.echantillons.length; i++){
+    sx += Math.cos(enRadians(etat.echantillons[i]));
+    sy += Math.sin(enRadians(etat.echantillons[i]));
+  }
+  if (sx === 0 && sy === 0) return valeur;
+  return (enDegres(Math.atan2(sy, sx)) + 360) % 360;
+}
+
+/* ============================================================
+   Silhouette SVG, geometrique, halo lumineux
+   ============================================================ */
+function silhouette(index, couleur){
+  var h = "halo" + index, c = "corps" + index;
+  return '<svg class="corps" viewBox="0 0 120 200" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">' +
+    '<defs>' +
+      '<radialGradient id="' + h + '" cx="50%" cy="50%" r="50%">' +
+        '<stop offset="0%" stop-color="' + couleur + '" stop-opacity="0.5"/>' +
+        '<stop offset="55%" stop-color="' + couleur + '" stop-opacity="0.14"/>' +
+        '<stop offset="100%" stop-color="' + couleur + '" stop-opacity="0"/>' +
+      '</radialGradient>' +
+      '<linearGradient id="' + c + '" x1="0" y1="0" x2="0" y2="1">' +
+        '<stop offset="0%" stop-color="' + couleur + '" stop-opacity="0.95"/>' +
+        '<stop offset="100%" stop-color="' + couleur + '" stop-opacity="0.32"/>' +
+      '</linearGradient>' +
+    '</defs>' +
+    '<circle cx="60" cy="100" r="60" fill="url(#' + h + ')"/>' +
+    '<ellipse cx="60" cy="188" rx="33" ry="6" fill="' + couleur + '" opacity="0.18"/>' +
+    '<line x1="60" y1="34" x2="60" y2="12" stroke="' + couleur + '" stroke-width="2" opacity="0.65"/>' +
+    '<circle cx="60" cy="9" r="4.5" fill="' + couleur + '"/>' +
+    '<path d="M60 34 L84 48 L84 76 L60 90 L36 76 L36 48 Z" fill="url(#' + c + ')" stroke="' + couleur + '" stroke-width="2" stroke-linejoin="round"/>' +
+    '<path d="M60 92 L93 124 L80 178 L40 178 L27 124 Z" fill="url(#' + c + ')" stroke="' + couleur + '" stroke-width="2" stroke-linejoin="round" opacity="0.92"/>' +
+    '<path d="M60 106 L76 132 L60 156 L44 132 Z" fill="#0B0E14" opacity="0.55"/>' +
+    '<path d="M60 116 L69 132 L60 148 L51 132 Z" fill="' + couleur + '"/>' +
+    '</svg>';
+}
+
+/* ============================================================
+   Generation des personnages autour de la position courante
+   ============================================================ */
+function genererPersonnages(){
+  var scene = document.getElementById("scene");
+  scene.innerHTML = "";
+  etat.personnages = [];
+  etat.captures = 0;
+  etat.cible = null;
+  if (!etat.position) return;
+
+  var depart = Math.random() * 360;
+  var ordre = [0,1,2,3,4].sort(function(){ return Math.random() - 0.5; });
+
+  for (var i = 0; i < 5; i++){
+    var direction = (depart + i * 72 + (Math.random() * 30 - 15) + 360) % 360;
+    var distance = DISTANCES[ordre[i]];
+    var point = deplacer(etat.position.lat, etat.position.lon, distance, direction);
+
+    var element = document.createElement("div");
+    element.className = "perso";
+    element.style.display = "none";
+    element.innerHTML = silhouette(i, COULEURS[i]) +
+      '<div class="etiquette">' + NOMS[i] + ' <i>&middot;</i> <span class="dist">--</span></div>';
+    scene.appendChild(element);
+
+    etat.personnages.push({
+      index: i, nom: NOMS[i], couleur: COULEURS[i],
+      lat: point.lat, lon: point.lon,
+      distance: distance, ecart: 180, capturee: false,
+      element: element,
+      etiquette: element.querySelector(".dist")
+    });
+  }
+  majCompteur();
+  afficherMessage("Cinq personnages sont posés autour de vous. Tournez lentement sur vous-même afin de les trouver.", false);
+}
+
+/* ============================================================
+   Interface, messages et compteur
+   ============================================================ */
+var minuteurMessage = null;
+function afficherMessage(texte, accent){
+  var boite = document.getElementById("message");
+  boite.textContent = texte;
+  boite.className = accent ? "or" : "";
+  boite.style.display = "block";
+  if (minuteurMessage) clearTimeout(minuteurMessage);
+  minuteurMessage = setTimeout(function(){ boite.style.display = "none"; }, 6500);
+}
+
+function majCompteur(){
+  document.querySelector("#compteur b").textContent = String(etat.captures);
+  document.getElementById("dRestants").textContent = String(5 - etat.captures);
+}
+
+/* ============================================================
+   Permissions, dans l'ordre et dans le meme geste utilisateur
+   ============================================================ */
+function etatDemarrage(texte){
+  document.getElementById("etatDemarrage").textContent = texte;
+}
+
+function demanderPosition(){
+  return new Promise(function(resoudre, rejeter){
+    if (!navigator.geolocation){ rejeter(new Error("La géolocalisation n'est pas disponible.")); return; }
+    navigator.geolocation.getCurrentPosition(function(p){
+      etat.position = { lat: p.coords.latitude, lon: p.coords.longitude, precision: p.coords.accuracy };
+      resoudre();
+    }, function(){
+      rejeter(new Error("La position a été refusée ou reste introuvable."));
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+  });
+}
+
+function suivrePosition(){
+  if (etat.veilleurPosition !== null) navigator.geolocation.clearWatch(etat.veilleurPosition);
+  etat.veilleurPosition = navigator.geolocation.watchPosition(function(p){
+    etat.position = { lat: p.coords.latitude, lon: p.coords.longitude, precision: p.coords.accuracy };
+  }, function(){}, { enableHighAccuracy: true, timeout: 20000, maximumAge: 1000 });
+}
+
+function surOrientation(e){
+  var valeur = null, source = null;
+  if (typeof e.webkitCompassHeading === "number" && !isNaN(e.webkitCompassHeading)){
+    valeur = e.webkitCompassHeading;
+    source = "boussole iOS";
+  } else if (e.alpha !== null && e.alpha !== undefined && !isNaN(e.alpha)){
+    valeur = (360 - e.alpha) % 360;
+    source = e.absolute ? "alpha absolu" : "alpha";
+  }
+  if (valeur === null) return;
+  etat.cap = lisserCap((valeur + 360) % 360);
+  etat.sourceCap = source;
+  etat.derniereOrientation = Date.now();
+  if (etat.mode === "radar" && source === "boussole iOS") { /* le retour se fait par le bouton */ }
+}
+
+function demanderOrientation(){
+  return new Promise(function(resoudre){
+    var poser = function(){
+      window.addEventListener("deviceorientationabsolute", surOrientation, true);
+      window.addEventListener("deviceorientation", surOrientation, true);
+      resoudre();
+    };
+    if (typeof DeviceOrientationEvent !== "undefined" &&
+        typeof DeviceOrientationEvent.requestPermission === "function"){
+      DeviceOrientationEvent.requestPermission().then(function(reponse){
+        if (reponse === "granted") poser(); else resoudre();
+      }).catch(function(){ resoudre(); });
+    } else if (typeof DeviceOrientationEvent !== "undefined"){
+      poser();
+    } else {
+      resoudre();
+    }
+  });
+}
+
+function demanderCamera(){
+  return new Promise(function(resoudre, rejeter){
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      rejeter(new Error("La caméra n'est pas accessible sur ce navigateur.")); return;
+    }
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    }).then(function(flux){
+      etat.flux = flux;
+      var video = document.getElementById("flux");
+      video.srcObject = flux;
+      var lecture = video.play();
+      if (lecture && lecture.catch) lecture.catch(function(){});
+      resoudre();
+    }).catch(function(){
+      rejeter(new Error("La caméra a été refusée ou reste occupée."));
+    });
+  });
+}
+
+/* ============================================================
+   Bascule des modes
+   ============================================================ */
+function passerEnRadar(raison){
+  etat.mode = "radar";
+  document.getElementById("radar").classList.add("actif");
+  document.getElementById("dMode").textContent = "radar";
+  document.getElementById("radarNote").textContent = raison;
+  document.getElementById("reticule").style.display = "none";
+}
+
+function passerEnCamera(){
+  etat.mode = "camera";
+  document.getElementById("radar").classList.remove("actif");
+  document.getElementById("dMode").textContent = "caméra";
+  document.getElementById("reticule").style.display = "block";
+}
+
+/* ============================================================
+   Rendu de la scene en réalité augmentée
+   ============================================================ */
+function rendre(){
+  requestAnimationFrame(rendre);
+  if (!etat.position) return;
+
+  var largeur = window.innerWidth, hauteur = window.innerHeight;
+  var meilleur = null, distanceMini = Infinity;
+
+  for (var i = 0; i < etat.personnages.length; i++){
+    var p = etat.personnages[i];
+    if (p.capturee){ p.element.style.display = "none"; continue; }
+
+    p.distance = distanceEntre(etat.position.lat, etat.position.lon, p.lat, p.lon);
+    var cap = relevement(etat.position.lat, etat.position.lon, p.lat, p.lon);
+    p.ecart = (etat.cap === null) ? 180 : ecart(cap - etat.cap);
+
+    if (p.distance < distanceMini){ distanceMini = p.distance; meilleur = p; }
+
+    if (etat.mode !== "camera" || etat.cap === null || Math.abs(p.ecart) > CHAMP){
+      p.element.style.display = "none";
+      continue;
+    }
+
+    var taille = borner(300 / (1 + p.distance / 22), 34, 230);
+    var x = largeur / 2 + (p.ecart / CHAMP) * (largeur / 2);
+    var proximite = borner(p.distance / 180, 0, 1);
+    var y = hauteur * (0.30 + 0.26 * (1 - proximite));
+
+    p.element.style.display = "block";
+    p.element.style.width = taille + "px";
+    p.element.style.height = (taille * 200 / 120) + "px";
+    p.element.style.left = x + "px";
+    p.element.style.top = y + "px";
+    p.element.style.opacity = String(borner(1.05 - Math.abs(p.ecart) / (CHAMP * 1.6), 0.28, 1));
+    p.etiquette.textContent = Math.round(p.distance) + " m";
+    if (p.distance <= RAYON_CAPTURE) p.element.classList.add("proche");
+    else p.element.classList.remove("proche");
+  }
+
+  majCible(meilleur);
+  majDiagnostic(meilleur);
+  if (etat.mode === "radar") dessinerRadar();
+}
+
+function majCible(meilleur){
+  var bouton = document.getElementById("capturer");
+  var capturable = null;
+
+  if (meilleur && !meilleur.capturee && meilleur.distance <= RAYON_CAPTURE){
+    if (etat.mode === "radar") capturable = meilleur;
+    else if (etat.cap !== null && Math.abs(meilleur.ecart) <= TOLERANCE_CENTRE) capturable = meilleur;
+  }
+  etat.cible = capturable;
+
+  if (capturable){
+    bouton.textContent = "Capturer " + capturable.nom;
+    bouton.classList.add("visible");
+  } else {
+    bouton.classList.remove("visible");
+  }
+}
+
+function capturer(){
+  var p = etat.cible;
+  if (!p || p.capturee) return;
+  p.capturee = true;
+  etat.cible = null;
+  etat.captures += 1;
+  p.element.classList.add("capturee");
+  document.getElementById("capturer").classList.remove("visible");
+  majCompteur();
+  setTimeout(function(){ p.element.style.display = "none"; }, 650);
+
+  if (etat.captures >= 5){
+    afficherMessage("Votre collection est complète, les cinq personnages sont capturés. Vous pouvez relancer une partie.", true);
+  } else {
+    afficherMessage(p.nom + " rejoint votre collection. Il reste " + (5 - etat.captures) + " personnages à trouver.", true);
+  }
+}
+
+/* ============================================================
+   Bandeau de diagnostic
+   ============================================================ */
+function majDiagnostic(meilleur){
+  var cap = (etat.cap === null) ? "indisponible" : Math.round(etat.cap) + " degrés";
+  document.getElementById("dCap").textContent = cap;
+  document.getElementById("dSource").textContent = etat.sourceCap;
+  document.getElementById("dPrecision").textContent =
+    etat.position && etat.position.precision ? Math.round(etat.position.precision) + " m" : "indisponible";
+  document.getElementById("dProche").textContent =
+    meilleur ? Math.round(meilleur.distance) + " m, " + meilleur.nom : "aucun personnage";
+  document.getElementById("diagResume").textContent =
+    (etat.cap === null ? "cap indisponible" : "cap " + Math.round(etat.cap) + " degrés") +
+    (meilleur ? ", plus proche à " + Math.round(meilleur.distance) + " m" : "");
+}
+
+/* ============================================================
+   Mode radar, repli quand la boussole ne répond pas
+   ============================================================ */
+var dernierRadar = 0;
+function dessinerRadar(){
+  var maintenant = Date.now();
+  if (maintenant - dernierRadar < 140) return;
+  dernierRadar = maintenant;
+
+  var toile = document.getElementById("toileRadar");
+  var cx = 170, cy = 170, rayonPixels = 148;
+  var rayonMetres = 200;
+  for (var k = 0; k < etat.personnages.length; k++){
+    if (!etat.personnages[k].capturee && etat.personnages[k].distance > rayonMetres){
+      rayonMetres = etat.personnages[k].distance * 1.12;
+    }
+  }
+  var echelle = rayonPixels / rayonMetres;
+  var svg = "";
+
+  svg += '<circle cx="170" cy="170" r="148" fill="#141A26" stroke="#232C3C" stroke-width="1"/>';
+  var anneaux = [rayonMetres / 3, (rayonMetres / 3) * 2, rayonMetres];
+  for (var a = 0; a < anneaux.length; a++){
+    svg += '<circle cx="170" cy="170" r="' + (anneaux[a] * echelle).toFixed(1) +
+           '" fill="none" stroke="#232C3C" stroke-width="1"/>';
+    svg += '<text x="174" y="' + (cy - anneaux[a] * echelle + 12).toFixed(1) +
+           '" fill="#8A94A6" font-size="10">' + Math.round(anneaux[a]) + ' m</text>';
+  }
+  svg += '<line x1="170" y1="22" x2="170" y2="318" stroke="#232C3C" stroke-width="1"/>';
+  svg += '<line x1="22" y1="170" x2="318" y2="170" stroke="#232C3C" stroke-width="1"/>';
+  svg += '<text x="170" y="16" fill="#BEA56E" font-size="11" text-anchor="middle">Nord</text>';
+  svg += '<text x="170" y="332" fill="#8A94A6" font-size="11" text-anchor="middle">Sud</text>';
+  svg += '<text x="330" y="174" fill="#8A94A6" font-size="11" text-anchor="end">Est</text>';
+  svg += '<text x="10" y="174" fill="#8A94A6" font-size="11">Ouest</text>';
+
+  for (var i = 0; i < etat.personnages.length; i++){
+    var p = etat.personnages[i];
+    if (p.capturee) continue;
+    var cap = relevement(etat.position.lat, etat.position.lon, p.lat, p.lon);
+    var d = Math.min(p.distance, rayonMetres);
+    var x = cx + Math.sin(enRadians(cap)) * d * echelle;
+    var y = cy - Math.cos(enRadians(cap)) * d * echelle;
+    svg += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="13" fill="' + p.couleur + '" opacity="0.16"/>';
+    svg += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="5.5" fill="' + p.couleur + '"/>';
+    svg += '<text x="' + x.toFixed(1) + '" y="' + (y + 22).toFixed(1) +
+           '" fill="#E8ECF4" font-size="10" text-anchor="middle">' + Math.round(p.distance) + ' m</text>';
+  }
+
+  if (etat.cap !== null){
+    var fx = cx + Math.sin(enRadians(etat.cap)) * 40;
+    var fy = cy - Math.cos(enRadians(etat.cap)) * 40;
+    svg += '<line x1="170" y1="170" x2="' + fx.toFixed(1) + '" y2="' + fy.toFixed(1) +
+           '" stroke="#4184CC" stroke-width="2"/>';
+  }
+  svg += '<circle cx="170" cy="170" r="6" fill="#4184CC"/>';
+  svg += '<circle cx="170" cy="170" r="13" fill="none" stroke="#4184CC" stroke-width="1" opacity="0.5"/>';
+  toile.innerHTML = svg;
+}
+
+/* ============================================================
+   Enchainement des permissions, une par geste utilisateur
+   ============================================================ */
+var etape = 0;
+var bouton = document.getElementById("demarrer");
+
+bouton.addEventListener("click", function(){
+  bouton.disabled = true;
+  if (etape === 0){
+    etatDemarrage("Relevé de votre position en cours.");
+    demanderPosition().then(function(){
+      etape = 1;
+      bouton.textContent = "Autoriser la boussole";
+      etatDemarrage("Position relevée avec une précision de " + Math.round(etat.position.precision) + " mètres. Touchez pour autoriser la boussole.");
+      bouton.disabled = false;
+    }).catch(function(err){
+      etatDemarrage(err.message + " Vérifiez les réglages du navigateur, puis touchez de nouveau.");
+      bouton.disabled = false;
+    });
+  } else if (etape === 1){
+    demanderOrientation().then(function(){
+      etape = 2;
+      bouton.textContent = "Activer la caméra";
+      etatDemarrage("Touchez pour activer la caméra arrière.");
+      bouton.disabled = false;
+    });
+  } else {
+    etatDemarrage("Ouverture de la caméra en cours.");
+    demanderCamera().then(function(){
+      lancerPartie(true);
+    }).catch(function(err){
+      lancerPartie(false);
+      passerEnRadar(err.message + " Le prototype reste utilisable en mode radar.");
+    });
+  }
+});
+
+var boucleDemarree = false;
+function lancerPartie(avecCamera){
+  document.getElementById("accueil").style.display = "none";
+  document.getElementById("jeu").style.display = "block";
+  suivrePosition();
+  genererPersonnages();
+  if (!boucleDemarree){ boucleDemarree = true; requestAnimationFrame(rendre); }
+  if (avecCamera) passerEnCamera();
+  surveillerBoussole();
+}
+
+function surveillerBoussole(){
+  setTimeout(function(){
+    if (etat.cap === null && etat.mode !== "radar"){
+      passerEnRadar("La boussole n'a pas répondu sur cet appareil. Le prototype bascule en mode radar : le disque montre les personnages par direction et par distance, le nord vers le haut. Vous pouvez toujours vous en approcher et les capturer.");
+    }
+  }, DELAI_BOUSSOLE);
+}
+
+/* ============================================================
+   Commandes de l'interface
+   ============================================================ */
+document.getElementById("capturer").addEventListener("click", capturer);
+
+document.getElementById("relancer").addEventListener("click", function(){
+  if (!etat.position){ return; }
+  genererPersonnages();
+  afficherMessage("Cinq nouveaux personnages sont posés autour de votre position courante.", false);
+});
+
+document.getElementById("diagTitre").addEventListener("click", function(){
+  var boite = document.getElementById("diag");
+  boite.classList.toggle("replie");
+  document.getElementById("chevron").textContent = boite.classList.contains("replie") ? "Déplier" : "Replier";
+});
+
+document.getElementById("reessayer").addEventListener("click", function(){
+  etat.echantillons = [];
+  etat.cap = null;
+  demanderOrientation().then(function(){
+    setTimeout(function(){
+      if (etat.cap !== null){
+        if (etat.flux){
+          passerEnCamera();
+          afficherMessage("La boussole répond de nouveau. Le mode caméra est rétabli.", false);
+        } else {
+          demanderCamera().then(function(){
+            passerEnCamera();
+            afficherMessage("La boussole et la caméra répondent. Le mode caméra est rétabli.", false);
+          }).catch(function(){
+            document.getElementById("radarNote").textContent = "La boussole répond, mais la caméra reste indisponible. Le mode radar est maintenu.";
+          });
+        }
+      } else {
+        document.getElementById("radarNote").textContent = "La boussole n'a toujours pas répondu. Le mode radar est maintenu, il reste pleinement utilisable.";
+      }
+    }, 1400);
+  });
+});
+
+window.addEventListener("pagehide", function(){
+  if (etat.veilleurPosition !== null) navigator.geolocation.clearWatch(etat.veilleurPosition);
+  if (etat.flux){
+    var pistes = etat.flux.getTracks();
+    for (var i = 0; i < pistes.length; i++) pistes[i].stop();
+  }
+});
+
+})();
+</script>
+</body>
+</html>
